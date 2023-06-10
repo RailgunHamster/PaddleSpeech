@@ -3,12 +3,20 @@
 set -e
 source path.sh
 
+RAW_DATA=$AISHELL_3_DATA
+ALIGNED_DATA="$TEMP/Aligned"
+TRAIN_OUTPUT="$TEMP/Trained"
+DUMP_DIR="$TEMP/Dump"
+MAIN_ROOT=${PADDLE_ROOT}
+BIN_DIR="${PADDLE_ROOT}/paddlespeech/t2s/exps"
+TOOL="${BIN_DIR}/fastspeech2"
+
 gpus=0,1
 stage=0
 stop_stage=100
 
 conf_path=conf/default.yaml
-train_output_path=exp/default
+train_output_path=${TRAIN_OUTPUT}
 ckpt_name=snapshot_iter_482.pdz
 
 # with the following command, you can choose the stage range you want to run

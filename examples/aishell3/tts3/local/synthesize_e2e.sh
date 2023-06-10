@@ -11,11 +11,11 @@ stop_stage=0
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     FLAGS_allocator_strategy=naive_best_fit \
     FLAGS_fraction_of_gpu_memory_to_use=0.01 \
-    python3 ${BIN_DIR}/../synthesize_e2e.py \
+    python ${BIN_DIR}/../synthesize_e2e.py \
         --am=fastspeech2_aishell3 \
         --am_config=${config_path} \
         --am_ckpt=${train_output_path}/checkpoints/${ckpt_name} \
-        --am_stat=dump/train/speech_stats.npy \
+        --am_stat=${DUMP_DIR}/train/speech_stats.npy \
         --voc=pwgan_aishell3 \
         --voc_config=pwg_aishell3_ckpt_0.5/default.yaml \
         --voc_ckpt=pwg_aishell3_ckpt_0.5/snapshot_iter_1000000.pdz \
@@ -23,8 +23,8 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
         --lang=zh \
         --text=${BIN_DIR}/../../assets/sentences.txt \
         --output_dir=${train_output_path}/test_e2e \
-        --phones_dict=dump/phone_id_map.txt \
-        --speaker_dict=dump/speaker_id_map.txt \
+        --phones_dict=${DUMP_DIR}/phone_id_map.txt \
+        --speaker_dict=${DUMP_DIR}/speaker_id_map.txt \
         --spk_id=0 \
         --inference_dir=${train_output_path}/inference
 fi
@@ -34,11 +34,11 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     echo "in hifigan syn_e2e"
     FLAGS_allocator_strategy=naive_best_fit \
     FLAGS_fraction_of_gpu_memory_to_use=0.01 \
-    python3 ${BIN_DIR}/../synthesize_e2e.py \
+    python ${BIN_DIR}/../synthesize_e2e.py \
         --am=fastspeech2_aishell3 \
         --am_config=${config_path} \
         --am_ckpt=${train_output_path}/checkpoints/${ckpt_name} \
-        --am_stat=dump/train/speech_stats.npy \
+        --am_stat=${DUMP_DIR}/train/speech_stats.npy \
         --voc=hifigan_aishell3 \
         --voc_config=hifigan_aishell3_ckpt_0.2.0/default.yaml \
         --voc_ckpt=hifigan_aishell3_ckpt_0.2.0/snapshot_iter_2500000.pdz \
@@ -46,8 +46,8 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
         --lang=zh \
         --text=${BIN_DIR}/../../assets/sentences.txt \
         --output_dir=${train_output_path}/test_e2e \
-        --phones_dict=dump/phone_id_map.txt \
-        --speaker_dict=dump/speaker_id_map.txt \
+        --phones_dict=${DUMP_DIR}/phone_id_map.txt \
+        --speaker_dict=${DUMP_DIR}/speaker_id_map.txt \
         --spk_id=0 \
         --inference_dir=${train_output_path}/inference
     fi
