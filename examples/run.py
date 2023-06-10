@@ -1,6 +1,7 @@
 import subprocess
 
 debug_mode = True
+manual_download = False
 example1 = "aishell3"
 example2 = "tts3"
 model = "fastspeech2"
@@ -27,6 +28,46 @@ def run(args: list[str]):
     else:
         state.check_returncode()
     return state
+
+
+def download():
+    if not manual_download:
+        return
+    import nltk
+    import os
+    import sys
+
+    # path gen from nltk/data.py file
+    path = []
+    _paths_from_env = os.environ.get("NLTK_DATA", "").split(os.pathsep)
+    path += [d for d in _paths_from_env if d]
+    if "APPENGINE_RUNTIME" not in os.environ and os.path.expanduser("~/") != "~/":
+        path.append(os.path.expanduser("~/nltk_data"))
+    path += [
+        os.path.join(sys.prefix, "nltk_data"),
+        os.path.join(sys.prefix, "share", "nltk_data"),
+        os.path.join(sys.prefix, "lib", "nltk_data"),
+        os.path.join(os.environ.get("APPDATA", "C:\\"), "nltk_data"),
+        r"C:\nltk_data",
+        r"D:\nltk_data",
+        r"E:\nltk_data",
+    ]
+    ids = [
+        {"id": "averaged_perceptron_tagger", "dir": "taggers", "ext": ".zip"},
+        {"id": "cmudict", "dir": "corpora", "ext": ".zip"},
+    ]
+    try:
+        for id in ids:
+            for p in path:
+                f = os.path.join(p, id["dir"], f"{id['id']}{id['ext']}")
+                if os.path.exists(f):
+                    break
+            else:
+                nltk.download(id["id"])
+    except Exception as e:
+        path_str = "".join("\n    - %r" % d for d in path)
+        print(f'download nltk("{ids}") yourself into: {path_str}\n  or use proxy.')
+        raise e
 
 
 def preprocess():
@@ -116,9 +157,13 @@ def preprocess():
 
 def do():
     try:
+        download()
         preprocess()
-    except:
+    except subprocess.CalledProcessError:
         print("preprocess failed.")
+        return
+    except Exception as e:
+        print(e)
         return
 
 
