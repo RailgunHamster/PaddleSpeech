@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 debug_mode = True
@@ -5,8 +6,10 @@ manual_download = False
 example1 = "aishell3"
 example2 = "tts3"
 model = "fastspeech2"
+lexicon = "simple"
 root = "C:/github/PaddleSpeech"
 ckpt = "snapshot_iter_482.pdz"
+mfa = f"{root}/examples/other/mfa"
 example_path = f"{root}/examples/{example1}/{example2}"
 temp = f"{root}/temp"
 raw = f"{temp}/AISHELL-3"
@@ -16,11 +19,21 @@ dump = f"{temp}/dump"
 duration = f"{temp}/durations.txt"
 utils = f"{root}/utils"
 tool = f"{root}/paddlespeech/t2s/exps/{model}"
+mfa_local = f"{mfa}/local"
 config = f"{example_path}/conf/default.yaml"
 
 
-def run(args: list[str]):
-    args.insert(0, "python")
+def create_folders():
+    print("create output folders.")
+    folders = [aligned, trained, dump]
+    for folder in folders:
+        os.makedirs(folder, exist_ok=True)
+
+
+def run(args: list[str], condition: bool = True):
+    if not condition:
+        print("skip...")
+        return
     state = subprocess.run(args)
     if debug_mode:
         if state.returncode:
@@ -32,9 +45,10 @@ def run(args: list[str]):
 
 def download():
     if not manual_download:
+        print("auto downloads.")
         return
+    print("manual downloads.")
     import nltk
-    import os
     import sys
 
     # path gen from nltk/data.py file
@@ -71,19 +85,82 @@ def download():
 
 
 def preprocess():
+    print("generating lexicon...")
+    run(
+        [
+            "python",
+            f"{mfa_local}/generate_lexicon.py",
+            f"{aligned}/{lexicon}",
+            "--with-r",
+            "--with-tone",
+        ],
+        not os.path.exists(f"{aligned}/{lexicon}.lexicon"),
+    )
+    print("lexicon done")
+    print("reorganizing baker corpus...")
+    run(
+        [
+            "python",
+            f"{mfa_local}/reorganize_baker.py",
+            f"--root-dir={raw}",
+            f"--output-dir={aligned}/baker_corpus",
+            "--resample-audio",
+        ],
+        not os.path.exists(f"{aligned}/baker_corpus"),
+    )
+    print(f"reorganization done. Check output in {aligned}/baker_corpus.")
+    print("audio files are resampled to 16kHz")
+    print(
+        f"transcription for each audio file is saved with the same namd in {aligned}/baker_corpus "
+    )
+    print("detecting oov...")
+    run(
+        [
+            "python",
+            f"{mfa_local}/detect_oov.py",
+            f"{aligned}/baker_corpus",
+            f"{aligned}/{lexicon}.lexicon",
+        ],
+    )
+    print(
+        "detecting oov done. you may consider regenerate lexicon if there is unexpected OOVs."
+    )
+    print("Start MFA training...")
+    run(
+        [
+            "mfa",
+            f"{aligned}/baker_corpus",
+            f"{aligned}/{lexicon}.lexicon",
+            f"{aligned}/baker_alignment",
+            "-o",
+            f"{aligned}/baker_model",
+            "--clean",
+            "--verbose",
+            "-j",
+            "10",
+            "--temp_directory",
+            f"{aligned}/.mfa_train_and_align",
+        ],
+        not os.path.exists(f"{aligned}/baker_alignment"),
+    )
+    print("training done!")
+    print(f"results: {aligned}/baker_alignment")
+    print(f"model: {aligned}/baker_model")
     print("Generate durations.txt from MFA results ...")
     run(
         [
+            "python",
             f"{utils}/gen_duration_from_textgrid.py",
             f"--inputdir={aligned}",
             f"--output",
             f"{duration}",
             f"--config={config}",
-        ]
+        ],
     )
     print("Extract features ...")
     run(
         [
+            "python",
             f"{tool}/preprocess.py",
             f"--dataset={example1}",
             f"--rootdir={raw}",
@@ -97,6 +174,7 @@ def preprocess():
     print("Get features' stats ...")
     run(
         [
+            "python",
             f"{utils}/compute_statistics.py",
             f"--metadata={dump}/train/raw/metadata.json1",
             '--field-name="speech"',
@@ -104,6 +182,7 @@ def preprocess():
     )
     run(
         [
+            "python",
             f"{utils}/compute_statistics.py",
             f"--metadata={dump}/train/raw/metadata.json1",
             '--field-name="pitch"',
@@ -111,6 +190,7 @@ def preprocess():
     )
     run(
         [
+            "python",
             f"{utils}/compute_statistics.py",
             f"--metadata={dump}/train/raw/metadata.json1",
             '--field-name="energy"',
@@ -119,6 +199,7 @@ def preprocess():
     print("Normalize ...")
     run(
         [
+            "python",
             f"{tool}/normalize.py",
             f"--metadata={dump}/train/raw/metadata.jsonl",
             f"--dumpdir={dump}/train/norm",
@@ -131,6 +212,7 @@ def preprocess():
     )
     run(
         [
+            "python",
             f"{tool}/normalize.py",
             f"--metadata={dump}/dev/raw/metadata.jsonl",
             f"--dumpdir={dump}/dev/norm",
@@ -143,6 +225,7 @@ def preprocess():
     )
     run(
         [
+            "python",
             f"{tool}/normalize.py",
             f"--metadata={dump}/test/raw/metadata.jsonl",
             f"--dumpdir={dump}/test/norm",
@@ -157,6 +240,7 @@ def preprocess():
 
 def do():
     try:
+        create_folders()
         download()
         preprocess()
     except subprocess.CalledProcessError:
