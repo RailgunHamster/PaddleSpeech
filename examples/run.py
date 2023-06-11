@@ -9,25 +9,17 @@ model = "fastspeech2"
 lexicon = "simple"
 root = "C:/github/PaddleSpeech"
 ckpt = "snapshot_iter_482.pdz"
-mfa = f"{root}/examples/other/mfa"
 example_path = f"{root}/examples/{example1}/{example2}"
 temp = f"{root}/temp"
-raw = f"{temp}/AISHELL-3"
+data = f"{temp}/AISHELL-3"
 aligned = f"{temp}/aligned"
 trained = f"{temp}/trained"
 dump = f"{temp}/dump"
-duration = f"{temp}/durations.txt"
+duration = f"{dump}/durations.txt"
 utils = f"{root}/utils"
 tool = f"{root}/paddlespeech/t2s/exps/{model}"
-mfa_local = f"{mfa}/local"
 config = f"{example_path}/conf/default.yaml"
-
-
-def create_folders():
-    print("create output folders.")
-    folders = [aligned, trained, dump]
-    for folder in folders:
-        os.makedirs(folder, exist_ok=True)
+textgrids = f"{aligned}/aishell3_alignment_tone"
 
 
 def run(args: list[str], condition: bool = True):
@@ -41,6 +33,13 @@ def run(args: list[str], condition: bool = True):
     else:
         state.check_returncode()
     return state
+
+
+def create_folders():
+    print("create output folders.")
+    folders = [aligned, trained, dump]
+    for folder in folders:
+        os.makedirs(folder, exist_ok=True)
 
 
 def download():
@@ -84,7 +83,29 @@ def download():
         raise e
 
 
+def copy_exists():
+    print("Copy phone_id_map.txt & speaker_id_map.txt & durations.txt")
+    mission = [
+        ["phone_set.txt", "phone_id_map.txt"],
+        ["spk_info.txt", "speaker_id_map.txt"],
+        ["train/label.txt", "durations.txt"],
+    ]
+    for m in mission:
+        f = f"{data}/{m[0]}"
+        t = f"{dump}/{m[1]}"
+        with open(f, encoding="utf-8") as fc:
+            lines = fc.readlines()
+        with open(t, "w", encoding="utf-8") as fc:
+
+            def filter_func(line: str):
+                line = line.strip()
+                return len(line) > 0 and not line.startswith("#")
+
+            fc.writelines(filter(filter_func, lines))
+
+
 def preprocess():
+    """
     print("generating lexicon...")
     run(
         [
@@ -146,12 +167,13 @@ def preprocess():
     print("training done!")
     print(f"results: {aligned}/baker_alignment")
     print(f"model: {aligned}/baker_model")
+    """
     print("Generate durations.txt from MFA results ...")
     run(
         [
             "python",
             f"{utils}/gen_duration_from_textgrid.py",
-            f"--inputdir={aligned}",
+            f"--inputdir={textgrids}",
             f"--output",
             f"{duration}",
             f"--config={config}",
@@ -163,20 +185,20 @@ def preprocess():
             "python",
             f"{tool}/preprocess.py",
             f"--dataset={example1}",
-            f"--rootdir={raw}",
+            f"--rootdir={data}",
             f"--dumpdir={dump}",
             f"--dur-file={duration}",
             f"--config={config}",
             f"--num-cpu=20",
             f"--cut-sil=True",
-        ],
+        ]
     )
     print("Get features' stats ...")
     run(
         [
             "python",
             f"{utils}/compute_statistics.py",
-            f"--metadata={dump}/train/raw/metadata.json1",
+            f"--metadata={dump}/train/raw/metadata.jsonl",
             '--field-name="speech"',
         ],
     )
@@ -184,7 +206,7 @@ def preprocess():
         [
             "python",
             f"{utils}/compute_statistics.py",
-            f"--metadata={dump}/train/raw/metadata.json1",
+            f"--metadata={dump}/train/raw/metadata.jsonl",
             '--field-name="pitch"',
         ],
     )
@@ -192,7 +214,7 @@ def preprocess():
         [
             "python",
             f"{utils}/compute_statistics.py",
-            f"--metadata={dump}/train/raw/metadata.json1",
+            f"--metadata={dump}/train/raw/metadata.jsonl",
             '--field-name="energy"',
         ],
     )
@@ -242,6 +264,7 @@ def do():
     try:
         create_folders()
         download()
+        # copy_exists()
         preprocess()
     except subprocess.CalledProcessError:
         print("preprocess failed.")
