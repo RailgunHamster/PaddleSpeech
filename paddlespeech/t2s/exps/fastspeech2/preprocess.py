@@ -38,15 +38,17 @@ from paddlespeech.t2s.datasets.preprocess_utils import merge_silence
 from paddlespeech.t2s.utils import str2bool
 
 
-def process_sentence(config: Dict[str, Any],
-                     fp: Path,
-                     sentences: Dict,
-                     output_dir: Path,
-                     mel_extractor=None,
-                     pitch_extractor=None,
-                     energy_extractor=None,
-                     cut_sil: bool=True,
-                     spk_emb_dir: Path=None):
+def process_sentence(
+    config: Dict[str, Any],
+    fp: Path,
+    sentences: Dict,
+    output_dir: Path,
+    mel_extractor=None,
+    pitch_extractor=None,
+    energy_extractor=None,
+    cut_sil: bool = True,
+    spk_emb_dir: Path = None,
+):
     utt_id = fp.stem
     # for vctk
     if utt_id.endswith("_mic2"):
@@ -54,10 +56,11 @@ def process_sentence(config: Dict[str, Any],
     record = None
     if utt_id in sentences:
         # reading, resampling may occur
-        wav, _ = librosa.load(
-            str(fp), sr=config.fs,
-            mono=False) if "canton" in str(fp) else librosa.load(
-                str(fp), sr=config.fs)
+        wav, _ = (
+            librosa.load(str(fp), sr=config.fs, mono=False)
+            if "canton" in str(fp)
+            else librosa.load(str(fp), sr=config.fs)
+        )
         if len(wav.shape) == 2 and "canton" in str(fp):
             # Remind that Cantonese datasets should be placed in ~/datasets/canton_all. Otherwise, it may cause problem.
             wav = wav[0]
@@ -68,15 +71,17 @@ def process_sentence(config: Dict[str, Any],
         if max_value > 1.0:
             wav = wav / max_value
         assert len(wav.shape) == 1, f"{utt_id} is not a mono-channel audio."
-        assert np.abs(wav).max(
-        ) <= 1.0, f"{utt_id} is seems to be different that 16 bit PCM."
+        assert (
+            np.abs(wav).max() <= 1.0
+        ), f"{utt_id} is seems to be different that 16 bit PCM."
         phones = sentences[utt_id][0]
         durations = sentences[utt_id][1]
         speaker = sentences[utt_id][2]
-        d_cumsum = np.pad(np.array(durations).cumsum(0), (1, 0), 'constant')
+        d_cumsum = np.pad(np.array(durations).cumsum(0), (1, 0), "constant")
         # little imprecise than use *.TextGrid directly
         times = librosa.frames_to_time(
-            d_cumsum, sr=config.fs, hop_length=config.n_shift)
+            d_cumsum, sr=config.fs, hop_length=config.n_shift
+        )
         if cut_sil:
             start = 0
             end = d_cumsum[-1]
@@ -84,7 +89,7 @@ def process_sentence(config: Dict[str, Any],
                 start = times[1]
                 durations = durations[1:]
                 phones = phones[1:]
-            if phones[-1] == 'sil' and len(durations) > 1:
+            if phones[-1] == "sil" and len(durations) > 1:
                 end = times[-2]
                 durations = durations[:-1]
                 phones = phones[:-1]
@@ -131,7 +136,7 @@ def process_sentence(config: Dict[str, Any],
             "speech": str(mel_path),
             "pitch": str(f0_path),
             "energy": str(energy_path),
-            "speaker": speaker
+            "speaker": speaker,
         }
         if spk_emb_dir:
             if speaker in os.listdir(spk_emb_dir):
@@ -144,17 +149,19 @@ def process_sentence(config: Dict[str, Any],
     return record
 
 
-def process_sentences(config,
-                      fps: List[Path],
-                      sentences: Dict,
-                      output_dir: Path,
-                      mel_extractor=None,
-                      pitch_extractor=None,
-                      energy_extractor=None,
-                      nprocs: int=1,
-                      cut_sil: bool=True,
-                      spk_emb_dir: Path=None,
-                      write_metadata_method: str='w'):
+def process_sentences(
+    config,
+    fps: List[Path],
+    sentences: Dict,
+    output_dir: Path,
+    mel_extractor=None,
+    pitch_extractor=None,
+    energy_extractor=None,
+    nprocs: int = 1,
+    cut_sil: bool = True,
+    spk_emb_dir: Path = None,
+    write_metadata_method: str = "w",
+):
     if nprocs == 1:
         results = []
         for fp in tqdm.tqdm(fps, total=len(fps)):
@@ -167,7 +174,8 @@ def process_sentences(config,
                 pitch_extractor=pitch_extractor,
                 energy_extractor=energy_extractor,
                 cut_sil=cut_sil,
-                spk_emb_dir=spk_emb_dir)
+                spk_emb_dir=spk_emb_dir,
+            )
             if record:
                 results.append(record)
     else:
@@ -175,10 +183,18 @@ def process_sentences(config,
             futures = []
             with tqdm.tqdm(total=len(fps)) as progress:
                 for fp in fps:
-                    future = pool.submit(process_sentence, config, fp,
-                                         sentences, output_dir, mel_extractor,
-                                         pitch_extractor, energy_extractor,
-                                         cut_sil, spk_emb_dir)
+                    future = pool.submit(
+                        process_sentence,
+                        config,
+                        fp,
+                        sentences,
+                        output_dir,
+                        mel_extractor,
+                        pitch_extractor,
+                        energy_extractor,
+                        cut_sil,
+                        spk_emb_dir,
+                    )
                     future.add_done_callback(lambda p: progress.update())
                     futures.append(future)
 
@@ -189,8 +205,7 @@ def process_sentences(config,
                         results.append(record)
 
     results.sort(key=itemgetter("utt_id"))
-    with jsonlines.open(output_dir / "metadata.jsonl",
-                        write_metadata_method) as writer:
+    with jsonlines.open(output_dir / "metadata.jsonl", write_metadata_method) as writer:
         for item in results:
             writer.write(item)
     print("Done")
@@ -199,48 +214,52 @@ def process_sentences(config,
 def main():
     # parse config and args
     parser = argparse.ArgumentParser(
-        description="Preprocess audio and then extract features.")
+        description="Preprocess audio and then extract features."
+    )
 
     parser.add_argument(
         "--dataset",
         default="baker",
         type=str,
-        help="name of dataset, should in {baker, aishell3, ljspeech, vctk} now")
+        help="name of dataset, should in {baker, aishell3, ljspeech, vctk} now",
+    )
 
     parser.add_argument(
-        "--rootdir", default=None, type=str, help="directory to dataset.")
+        "--rootdir", default=None, type=str, help="directory to dataset."
+    )
 
     parser.add_argument(
-        "--dumpdir",
-        type=str,
-        required=True,
-        help="directory to dump feature files.")
+        "--dumpdir", type=str, required=True, help="directory to dump feature files."
+    )
     parser.add_argument(
-        "--dur-file", default=None, type=str, help="path to durations.txt.")
+        "--dur-file", default=None, type=str, help="path to durations.txt."
+    )
 
     parser.add_argument("--config", type=str, help="fastspeech2 config file.")
 
-    parser.add_argument(
-        "--num-cpu", type=int, default=1, help="number of process.")
+    parser.add_argument("--num-cpu", type=int, default=1, help="number of process.")
 
     parser.add_argument(
         "--cut-sil",
         type=str2bool,
         default=True,
-        help="whether cut sil in the edge of audio")
+        help="whether cut sil in the edge of audio",
+    )
 
     parser.add_argument(
         "--spk_emb_dir",
         default=None,
         type=str,
-        help="directory to speaker embedding files.")
+        help="directory to speaker embedding files.",
+    )
 
     parser.add_argument(
         "--write_metadata_method",
         default="w",
         type=str,
         choices=["w", "a"],
-        help="How the metadata.jsonl file is written.")
+        help="How the metadata.jsonl file is written.",
+    )
     args = parser.parse_args()
 
     rootdir = Path(args.rootdir).expanduser()
@@ -258,7 +277,7 @@ def main():
     assert rootdir.is_dir()
     assert dur_file.is_file()
 
-    with open(args.config, 'rt') as f:
+    with open(args.config, "rt") as f:
         config = CfgNode(yaml.safe_load(f))
 
     sentences, speaker_set = get_phn_dur(dur_file)
@@ -275,8 +294,8 @@ def main():
         num_train = 9800
         num_dev = 100
         train_wav_files = wav_files[:num_train]
-        dev_wav_files = wav_files[num_train:num_train + num_dev]
-        test_wav_files = wav_files[num_train + num_dev:]
+        dev_wav_files = wav_files[num_train : num_train + num_dev]
+        test_wav_files = wav_files[num_train + num_dev :]
     elif args.dataset == "aishell3":
         sub_num_dev = 5
         wav_dir = rootdir / "train" / "wav"
@@ -286,8 +305,8 @@ def main():
         for speaker in os.listdir(wav_dir):
             wav_files = sorted(list((wav_dir / speaker).rglob("*.wav")))
             if len(wav_files) > 100:
-                train_wav_files += wav_files[:-sub_num_dev * 2]
-                dev_wav_files += wav_files[-sub_num_dev * 2:-sub_num_dev]
+                train_wav_files += wav_files[: -sub_num_dev * 2]
+                dev_wav_files += wav_files[-sub_num_dev * 2 : -sub_num_dev]
                 test_wav_files += wav_files[-sub_num_dev:]
             else:
                 train_wav_files += wav_files
@@ -300,8 +319,8 @@ def main():
         for speaker in os.listdir(wav_dir):
             wav_files = sorted(list((wav_dir / speaker).rglob("*.wav")))
             if len(wav_files) > 100:
-                train_wav_files += wav_files[:-sub_num_dev * 2]
-                dev_wav_files += wav_files[-sub_num_dev * 2:-sub_num_dev]
+                train_wav_files += wav_files[: -sub_num_dev * 2]
+                dev_wav_files += wav_files[-sub_num_dev * 2 : -sub_num_dev]
                 test_wav_files += wav_files[-sub_num_dev:]
             else:
                 train_wav_files += wav_files
@@ -311,8 +330,8 @@ def main():
         num_train = 12900
         num_dev = 100
         train_wav_files = wav_files[:num_train]
-        dev_wav_files = wav_files[num_train:num_train + num_dev]
-        test_wav_files = wav_files[num_train + num_dev:]
+        dev_wav_files = wav_files[num_train : num_train + num_dev]
+        test_wav_files = wav_files[num_train + num_dev :]
     elif args.dataset == "vctk":
         sub_num_dev = 5
         wav_dir = rootdir / "wav48_silence_trimmed"
@@ -322,8 +341,8 @@ def main():
         for speaker in os.listdir(wav_dir):
             wav_files = sorted(list((wav_dir / speaker).rglob("*_mic2.flac")))
             if len(wav_files) > 100:
-                train_wav_files += wav_files[:-sub_num_dev * 2]
-                dev_wav_files += wav_files[-sub_num_dev * 2:-sub_num_dev]
+                train_wav_files += wav_files[: -sub_num_dev * 2]
+                dev_wav_files += wav_files[-sub_num_dev * 2 : -sub_num_dev]
                 test_wav_files += wav_files[-sub_num_dev:]
             else:
                 train_wav_files += wav_files
@@ -347,19 +366,20 @@ def main():
         window=config.window,
         n_mels=config.n_mels,
         fmin=config.fmin,
-        fmax=config.fmax)
+        fmax=config.fmax,
+    )
     pitch_extractor = Pitch(
-        sr=config.fs,
-        hop_length=config.n_shift,
-        f0min=config.f0min,
-        f0max=config.f0max)
+        sr=config.fs, hop_length=config.n_shift, f0min=config.f0min, f0max=config.f0max
+    )
     energy_extractor = Energy(
         n_fft=config.n_fft,
         hop_length=config.n_shift,
         win_length=config.win_length,
-        window=config.window)
+        window=config.window,
+    )
 
     # process for the 3 sections
+    cpu_cores = 1  # args.num_cpu
     if train_wav_files:
         process_sentences(
             config=config,
@@ -369,10 +389,11 @@ def main():
             mel_extractor=mel_extractor,
             pitch_extractor=pitch_extractor,
             energy_extractor=energy_extractor,
-            nprocs=args.num_cpu,
+            nprocs=cpu_cores,
             cut_sil=args.cut_sil,
             spk_emb_dir=spk_emb_dir,
-            write_metadata_method=args.write_metadata_method)
+            write_metadata_method=args.write_metadata_method,
+        )
     if dev_wav_files:
         process_sentences(
             config=config,
@@ -382,10 +403,11 @@ def main():
             mel_extractor=mel_extractor,
             pitch_extractor=pitch_extractor,
             energy_extractor=energy_extractor,
-            nprocs=args.num_cpu,
+            nprocs=cpu_cores,
             cut_sil=args.cut_sil,
             spk_emb_dir=spk_emb_dir,
-            write_metadata_method=args.write_metadata_method)
+            write_metadata_method=args.write_metadata_method,
+        )
     if test_wav_files:
         process_sentences(
             config=config,
@@ -395,10 +417,11 @@ def main():
             mel_extractor=mel_extractor,
             pitch_extractor=pitch_extractor,
             energy_extractor=energy_extractor,
-            nprocs=args.num_cpu,
+            nprocs=cpu_cores,
             cut_sil=args.cut_sil,
             spk_emb_dir=spk_emb_dir,
-            write_metadata_method=args.write_metadata_method)
+            write_metadata_method=args.write_metadata_method,
+        )
 
 
 if __name__ == "__main__":

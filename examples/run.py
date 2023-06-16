@@ -1,5 +1,6 @@
 import os
 import subprocess
+import pyhocon
 
 debug_mode = True
 manual_download = False
@@ -20,6 +21,8 @@ utils = f"{root}/utils"
 tool = f"{root}/paddlespeech/t2s/exps/{model}"
 config = f"{example_path}/conf/default.yaml"
 textgrids = f"{aligned}/aishell3_alignment_tone"
+
+run_config = pyhocon.ConfigFactory.parse_file(f"{root}/examples/config.conf")
 
 
 def run(args: list[str], condition: bool = True):
@@ -105,159 +108,168 @@ def copy_exists():
 
 
 def preprocess():
-    """
-    print("generating lexicon...")
-    run(
-        [
-            "python",
-            f"{mfa_local}/generate_lexicon.py",
-            f"{aligned}/{lexicon}",
-            "--with-r",
-            "--with-tone",
-        ],
-        not os.path.exists(f"{aligned}/{lexicon}.lexicon"),
-    )
-    print("lexicon done")
-    print("reorganizing baker corpus...")
-    run(
-        [
-            "python",
-            f"{mfa_local}/reorganize_baker.py",
-            f"--root-dir={raw}",
-            f"--output-dir={aligned}/baker_corpus",
-            "--resample-audio",
-        ],
-        not os.path.exists(f"{aligned}/baker_corpus"),
-    )
-    print(f"reorganization done. Check output in {aligned}/baker_corpus.")
-    print("audio files are resampled to 16kHz")
-    print(
-        f"transcription for each audio file is saved with the same namd in {aligned}/baker_corpus "
-    )
-    print("detecting oov...")
-    run(
-        [
-            "python",
-            f"{mfa_local}/detect_oov.py",
-            f"{aligned}/baker_corpus",
-            f"{aligned}/{lexicon}.lexicon",
-        ],
-    )
-    print(
-        "detecting oov done. you may consider regenerate lexicon if there is unexpected OOVs."
-    )
-    print("Start MFA training...")
-    run(
-        [
-            "mfa",
-            f"{aligned}/baker_corpus",
-            f"{aligned}/{lexicon}.lexicon",
-            f"{aligned}/baker_alignment",
-            "-o",
-            f"{aligned}/baker_model",
-            "--clean",
-            "--verbose",
-            "-j",
-            "10",
-            "--temp_directory",
-            f"{aligned}/.mfa_train_and_align",
-        ],
-        not os.path.exists(f"{aligned}/baker_alignment"),
-    )
-    print("training done!")
-    print(f"results: {aligned}/baker_alignment")
-    print(f"model: {aligned}/baker_model")
-    """
-    print("Generate durations.txt from MFA results ...")
-    run(
-        [
-            "python",
-            f"{utils}/gen_duration_from_textgrid.py",
-            f"--inputdir={textgrids}",
-            f"--output",
-            f"{duration}",
-            f"--config={config}",
-        ],
-    )
-    print("Extract features ...")
-    run(
-        [
-            "python",
-            f"{tool}/preprocess.py",
-            f"--dataset={example1}",
-            f"--rootdir={data}",
-            f"--dumpdir={dump}",
-            f"--dur-file={duration}",
-            f"--config={config}",
-            f"--num-cpu=20",
-            f"--cut-sil=True",
-        ]
-    )
-    print("Get features' stats ...")
-    run(
-        [
-            "python",
-            f"{utils}/compute_statistics.py",
-            f"--metadata={dump}/train/raw/metadata.jsonl",
-            '--field-name="speech"',
-        ],
-    )
-    run(
-        [
-            "python",
-            f"{utils}/compute_statistics.py",
-            f"--metadata={dump}/train/raw/metadata.jsonl",
-            '--field-name="pitch"',
-        ],
-    )
-    run(
-        [
-            "python",
-            f"{utils}/compute_statistics.py",
-            f"--metadata={dump}/train/raw/metadata.jsonl",
-            '--field-name="energy"',
-        ],
-    )
-    print("Normalize ...")
-    run(
-        [
-            "python",
-            f"{tool}/normalize.py",
-            f"--metadata={dump}/train/raw/metadata.jsonl",
-            f"--dumpdir={dump}/train/norm",
-            f"--speech-stats={dump}/train/speech_stats.npy",
-            f"--pitch-stats={dump}/train/pitch_stats.npy",
-            f"--energy-stats={dump}/train/energy_stats.npy",
-            f"--phones-dict={dump}/phone_id_map.txt",
-            f"--speaker-dict={dump}/speaker_id_map.txt",
-        ],
-    )
-    run(
-        [
-            "python",
-            f"{tool}/normalize.py",
-            f"--metadata={dump}/dev/raw/metadata.jsonl",
-            f"--dumpdir={dump}/dev/norm",
-            f"--speech-stats={dump}/train/speech_stats.npy",
-            f"--pitch-stats={dump}/train/pitch_stats.npy",
-            f"--energy-stats={dump}/train/energy_stats.npy",
-            f"--phones-dict={dump}/phone_id_map.txt",
-            f"--speaker-dict={dump}/speaker_id_map.txt",
-        ],
-    )
-    run(
-        [
-            "python",
-            f"{tool}/normalize.py",
-            f"--metadata={dump}/test/raw/metadata.jsonl",
-            f"--dumpdir={dump}/test/norm",
-            f"--speech-stats={dump}/train/speech_stats.npy",
-            f"--pitch-stats={dump}/train/pitch_stats.npy",
-            f"--energy-stats={dump}/train/energy_stats.npy",
-            f"--phones-dict={dump}/phone_id_map.txt",
-            f"--speaker-dict={dump}/speaker_id_map.txt",
-        ],
-    )
+    if run_config.get("lexicon", False):
+        print("generating lexicon...")
+        run(
+            [
+                "python",
+                f"{mfa_local}/generate_lexicon.py",
+                f"{aligned}/{lexicon}",
+                "--with-r",
+                "--with-tone",
+            ],
+            not os.path.exists(f"{aligned}/{lexicon}.lexicon"),
+        )
+        print("lexicon done")
+    if run_config.get("reorganize", False):
+        print("reorganizing baker corpus...")
+        run(
+            [
+                "python",
+                f"{mfa_local}/reorganize_baker.py",
+                f"--root-dir={raw}",
+                f"--output-dir={aligned}/baker_corpus",
+                "--resample-audio",
+            ],
+            not os.path.exists(f"{aligned}/baker_corpus"),
+        )
+        print(f"reorganization done. Check output in {aligned}/baker_corpus.")
+        print("audio files are resampled to 16kHz")
+        print(
+            f"transcription for each audio file is saved with the same namd in {aligned}/baker_corpus "
+        )
+    if run_config.get("detect_oov", False):
+        print("detecting oov...")
+        run(
+            [
+                "python",
+                f"{mfa_local}/detect_oov.py",
+                f"{aligned}/baker_corpus",
+                f"{aligned}/{lexicon}.lexicon",
+            ],
+        )
+        print(
+            "detecting oov done. you may consider regenerate lexicon if there is unexpected OOVs."
+        )
+    if run_config.get("mfa", False):
+        print("Start MFA training...")
+        run(
+            [
+                "mfa",
+                f"{aligned}/baker_corpus",
+                f"{aligned}/{lexicon}.lexicon",
+                f"{aligned}/baker_alignment",
+                "-o",
+                f"{aligned}/baker_model",
+                "--clean",
+                "--verbose",
+                "-j",
+                "10",
+                "--temp_directory",
+                f"{aligned}/.mfa_train_and_align",
+            ],
+            not os.path.exists(f"{aligned}/baker_alignment"),
+        )
+        print("training done!")
+        print(f"results: {aligned}/baker_alignment")
+        print(f"model: {aligned}/baker_model")
+    if run_config.get("gen_duration", False):
+        print("Generate durations.txt from MFA results ...")
+        run(
+            [
+                "python",
+                f"{utils}/gen_duration_from_textgrid.py",
+                f"--inputdir={textgrids}",
+                f"--output",
+                f"{duration}",
+                f"--config={config}",
+            ],
+        )
+    if run_config.get("preprocess", False):
+        print("Extract features ...")
+        run(
+            [
+                "python",
+                f"{tool}/preprocess.py",
+                f"--dataset={example1}",
+                f"--rootdir={data}",
+                f"--dumpdir={dump}",
+                f"--dur-file={duration}",
+                f"--config={config}",
+                f"--num-cpu=20",
+                f"--cut-sil=True",
+            ]
+        )
+    if run_config.get("compute_statistics", False):
+        print("Get features' stats ...")
+        print("compute speech...")
+        run(
+            [
+                "python",
+                f"{utils}/compute_statistics.py",
+                f"--metadata={dump}/train/raw/metadata.jsonl",
+                "--field-name=speech",
+            ],
+        )
+        print("compute pitch...")
+        run(
+            [
+                "python",
+                f"{utils}/compute_statistics.py",
+                f"--metadata={dump}/train/raw/metadata.jsonl",
+                "--field-name=pitch",
+            ],
+        )
+        print("compute energy...")
+        run(
+            [
+                "python",
+                f"{utils}/compute_statistics.py",
+                f"--metadata={dump}/train/raw/metadata.jsonl",
+                "--field-name=energy",
+            ],
+        )
+    if run_config.get("normalize", False):
+        print("Normalize ...")
+        run(
+            [
+                "python",
+                f"{tool}/normalize.py",
+                f"--metadata={dump}/train/raw/metadata.jsonl",
+                f"--dumpdir={dump}/train/norm",
+                f"--speech-stats={dump}/train/speech_stats.npy",
+                f"--pitch-stats={dump}/train/pitch_stats.npy",
+                f"--energy-stats={dump}/train/energy_stats.npy",
+                f"--phones-dict={dump}/phone_id_map.txt",
+                f"--speaker-dict={dump}/speaker_id_map.txt",
+            ],
+        )
+        run(
+            [
+                "python",
+                f"{tool}/normalize.py",
+                f"--metadata={dump}/dev/raw/metadata.jsonl",
+                f"--dumpdir={dump}/dev/norm",
+                f"--speech-stats={dump}/train/speech_stats.npy",
+                f"--pitch-stats={dump}/train/pitch_stats.npy",
+                f"--energy-stats={dump}/train/energy_stats.npy",
+                f"--phones-dict={dump}/phone_id_map.txt",
+                f"--speaker-dict={dump}/speaker_id_map.txt",
+            ],
+        )
+        run(
+            [
+                "python",
+                f"{tool}/normalize.py",
+                f"--metadata={dump}/test/raw/metadata.jsonl",
+                f"--dumpdir={dump}/test/norm",
+                f"--speech-stats={dump}/train/speech_stats.npy",
+                f"--pitch-stats={dump}/train/pitch_stats.npy",
+                f"--energy-stats={dump}/train/energy_stats.npy",
+                f"--phones-dict={dump}/phone_id_map.txt",
+                f"--speaker-dict={dump}/speaker_id_map.txt",
+            ],
+        )
 
 
 def do():
