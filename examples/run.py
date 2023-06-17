@@ -2,8 +2,6 @@ import os
 import subprocess
 import pyhocon
 
-debug_mode = True
-manual_download = False
 example1 = "aishell3"
 example2 = "tts3"
 model = "fastspeech2"
@@ -30,7 +28,7 @@ def run(args: list[str], condition: bool = True):
         print("skip...")
         return
     state = subprocess.run(args)
-    if debug_mode:
+    if run_config.get("debug_mode", False):
         if state.returncode:
             input(f"{args}\n failed with {state.returncode}, enter to continue.")
     else:
@@ -46,7 +44,7 @@ def create_folders():
 
 
 def download():
-    if not manual_download:
+    if not run_config.get("manual_download", False):
         print("auto downloads.")
         return
     print("manual downloads.")
@@ -86,29 +84,12 @@ def download():
         raise e
 
 
-def copy_exists():
-    print("Copy phone_id_map.txt & speaker_id_map.txt & durations.txt")
-    mission = [
-        ["phone_set.txt", "phone_id_map.txt"],
-        ["spk_info.txt", "speaker_id_map.txt"],
-        ["train/label.txt", "durations.txt"],
-    ]
-    for m in mission:
-        f = f"{data}/{m[0]}"
-        t = f"{dump}/{m[1]}"
-        with open(f, encoding="utf-8") as fc:
-            lines = fc.readlines()
-        with open(t, "w", encoding="utf-8") as fc:
-
-            def filter_func(line: str):
-                line = line.strip()
-                return len(line) > 0 and not line.startswith("#")
-
-            fc.writelines(filter(filter_func, lines))
-
-
 def preprocess():
-    if run_config.get("lexicon", False):
+    c = run_config.get("preprocess")
+    if c is None:
+        print("no preprocess config")
+        return
+    if c.get("lexicon", False):
         print("generating lexicon...")
         run(
             [
@@ -121,7 +102,9 @@ def preprocess():
             not os.path.exists(f"{aligned}/{lexicon}.lexicon"),
         )
         print("lexicon done")
-    if run_config.get("reorganize", False):
+    else:
+        print("skip lexicon")
+    if c.get("reorganize", False):
         print("reorganizing baker corpus...")
         run(
             [
@@ -138,7 +121,9 @@ def preprocess():
         print(
             f"transcription for each audio file is saved with the same namd in {aligned}/baker_corpus "
         )
-    if run_config.get("detect_oov", False):
+    else:
+        print("skip reorganize")
+    if c.get("detect_oov", False):
         print("detecting oov...")
         run(
             [
@@ -151,7 +136,9 @@ def preprocess():
         print(
             "detecting oov done. you may consider regenerate lexicon if there is unexpected OOVs."
         )
-    if run_config.get("mfa", False):
+    else:
+        print("skip detect_oov")
+    if c.get("mfa", False):
         print("Start MFA training...")
         run(
             [
@@ -173,7 +160,9 @@ def preprocess():
         print("training done!")
         print(f"results: {aligned}/baker_alignment")
         print(f"model: {aligned}/baker_model")
-    if run_config.get("gen_duration", False):
+    else:
+        print("skip mfa")
+    if c.get("gen_duration", False):
         print("Generate durations.txt from MFA results ...")
         run(
             [
@@ -185,7 +174,9 @@ def preprocess():
                 f"--config={config}",
             ],
         )
-    if run_config.get("preprocess", False):
+    else:
+        print("skip gen_duration")
+    if c.get("preprocess", False):
         print("Extract features ...")
         run(
             [
@@ -200,7 +191,9 @@ def preprocess():
                 f"--cut-sil=True",
             ]
         )
-    if run_config.get("compute_statistics", False):
+    else:
+        print("skip preprocess")
+    if c.get("compute_statistics", False):
         print("Get features' stats ...")
         print("compute speech...")
         run(
@@ -229,7 +222,9 @@ def preprocess():
                 "--field-name=energy",
             ],
         )
-    if run_config.get("normalize", False):
+    else:
+        print("skip compute_statistics")
+    if c.get("normalize", False):
         print("Normalize ...")
         run(
             [
@@ -270,14 +265,33 @@ def preprocess():
                 f"--speaker-dict={dump}/speaker_id_map.txt",
             ],
         )
+    else:
+        print("skip normalize")
+
+
+def train():
+    c = run_config.get("train")
+    if c is None:
+        print("no train config")
+        return
+    """
+    python ${BIN_DIR}/train.py \
+        --train-metadata=${DUMP_DIR}/train/norm/metadata.jsonl \
+        --dev-metadata=${DUMP_DIR}/dev/norm/metadata.jsonl \
+        --config=${config_path} \
+        --output-dir=${train_output_path} \
+        --ngpu=2 \
+        --phones-dict=${DUMP_DIR}/phone_id_map.txt \
+        --speaker-dict=${DUMP_DIR}/speaker_id_map.txt
+    """
 
 
 def do():
     try:
         create_folders()
         download()
-        # copy_exists()
         preprocess()
+        train()
     except subprocess.CalledProcessError:
         print("preprocess failed.")
         return
