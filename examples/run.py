@@ -288,7 +288,7 @@ def train():
             f"--dev-metadata={dump}/dev/norm/metadata.jsonl",
             f"--config={config}",
             f"--output-dir={trained}",
-            f"--ngpu=1",
+            f"--ngpu={run_config.get('gpu')}",
             f"--phones-dict={dump}/phone_id_map.txt",
             f"--speaker-dict={dump}/speaker_id_map.txt",
         ],
