@@ -89,6 +89,9 @@ def preprocess():
     if c is None:
         print("no preprocess config")
         return
+    if not c.get("enable", True):
+        print("skip preprocess")
+        return
     if c.get("lexicon", False):
         print("generating lexicon...")
         run(
@@ -274,16 +277,22 @@ def train():
     if c is None:
         print("no train config")
         return
-    """
-    python ${BIN_DIR}/train.py \
-        --train-metadata=${DUMP_DIR}/train/norm/metadata.jsonl \
-        --dev-metadata=${DUMP_DIR}/dev/norm/metadata.jsonl \
-        --config=${config_path} \
-        --output-dir=${train_output_path} \
-        --ngpu=2 \
-        --phones-dict=${DUMP_DIR}/phone_id_map.txt \
-        --speaker-dict=${DUMP_DIR}/speaker_id_map.txt
-    """
+    if not c.get("enable", True):
+        print("skip train")
+        return
+    run(
+        [
+            "python",
+            f"{tool}/train.py",
+            f"--train-metadata={dump}/train/norm/metadata.jsonl",
+            f"--dev-metadata={dump}/dev/norm/metadata.jsonl",
+            f"--config={config}",
+            f"--output-dir={trained}",
+            f"--ngpu=1",
+            f"--phones-dict={dump}/phone_id_map.txt",
+            f"--speaker-dict={dump}/speaker_id_map.txt",
+        ],
+    )
 
 
 def do():
